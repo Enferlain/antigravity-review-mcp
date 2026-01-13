@@ -15,8 +15,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Disable logging entirely to prevent any stdout/stderr interference with MCP
-logging.disable(logging.CRITICAL)
+# Configure logging to write to stderr (keeps stdout clean for MCP protocol)
+logging.basicConfig(
+    level=logging.INFO, format="[%(name)s] %(message)s", stream=sys.stderr
+)
+# Silence verbose 3rd party loggers
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 logger = logging.getLogger("ReviewMCP")
 
 # File patterns to exclude from diffs (lockfiles, binaries, etc.)
@@ -60,7 +67,13 @@ def get_git_diff(target: str = "staged") -> str:
             args.extend(["--", f":!{pattern}"])
 
         result = subprocess.run(
-            args, capture_output=True, text=True, check=True, encoding="utf-8"
+            args,
+            capture_output=True,
+            text=True,
+            check=True,
+            encoding="utf-8",
+            stdin=subprocess.DEVNULL,  # Prevent stealing MCP's stdin
+            timeout=30,
         )
         return result.stdout
     except subprocess.CalledProcessError as e:
@@ -79,6 +92,8 @@ def get_changed_files() -> list[str]:
             text=True,
             check=True,
             encoding="utf-8",
+            stdin=subprocess.DEVNULL,
+            timeout=30,
         )
         # Get unstaged files
         unstaged = subprocess.run(
@@ -87,6 +102,8 @@ def get_changed_files() -> list[str]:
             text=True,
             check=True,
             encoding="utf-8",
+            stdin=subprocess.DEVNULL,
+            timeout=30,
         )
         files = set(
             staged.stdout.strip().split("\n") + unstaged.stdout.strip().split("\n")
@@ -202,7 +219,13 @@ def get_scoped_diff(files: list[str], target: str = "staged") -> str:
                 args = ["git", "diff", target, "--", normalized]
 
             result = subprocess.run(
-                args, capture_output=True, text=True, check=True, encoding="utf-8"
+                args,
+                capture_output=True,
+                text=True,
+                check=True,
+                encoding="utf-8",
+                stdin=subprocess.DEVNULL,
+                timeout=30,
             )
             if result.stdout.strip():
                 diffs.append(f"# Diff for: {filepath}\n{result.stdout}")
