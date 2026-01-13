@@ -19,6 +19,11 @@ load_dotenv()
 logging.basicConfig(
     level=logging.INFO, format="[%(name)s] %(message)s", stream=sys.stderr
 )
+# Silence 3rd party loggers to prevent MCP protocol interference
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 logger = logging.getLogger("ReviewMCP")
 
 # File patterns to exclude from diffs (lockfiles, binaries, etc.)
@@ -433,6 +438,7 @@ def run_agentic_review(
     client = OpenAI(
         api_key=api_key,
         base_url=base_url,
+        timeout=120.0,  # 2 minute timeout per request
     )
 
     # Default artifacts to ALWAYS check
