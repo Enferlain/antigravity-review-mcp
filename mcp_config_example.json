@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "review-mcp": {
+      "command": "uv",
+      "args": ["run", "--directory", "/absolute/path/to/review_mcp", "python", "server.py"]
+    }
+  }
+}
