@@ -425,6 +425,7 @@ def _execute_tool(name: str, arguments: dict) -> str:
 
 
 def run_agentic_review(
+    working_dir: str,
     diff_target: str = "staged",
     context_files: list[str] | None = None,
     focus_files: list[str] | None = None,
@@ -434,6 +435,7 @@ def run_agentic_review(
     Run an agentic review where GLM-4.7 decides what information to gather.
 
     Args:
+        working_dir: The git repository directory to run commands in.
         diff_target: 'staged', 'unstaged', or a git ref.
         context_files: Optional list of context files. If None, uses defaults.
         focus_files: Optional list of files to focus the review on.
@@ -444,76 +446,87 @@ def run_agentic_review(
     """
     import json
 
-    api_key = os.getenv("ZHIPU_API_KEY")
-    if not api_key:
-        return "Error: ZHIPU_API_KEY environment variable is not set."
+    # Save original directory and restore it on exit (safety sandwich)
+    original_cwd = os.getcwd()
 
-    # Configurable API endpoint
-    base_url = os.getenv("ZHIPU_BASE_URL", "https://api.z.ai/api/coding/paas/v4")
+    # Validate working directory
+    if not os.path.exists(working_dir):
+        return f"Error: The directory '{working_dir}' does not exist."
 
-    client = OpenAI(
-        api_key=api_key,
-        base_url=base_url,
-        timeout=120.0,  # 2 minute timeout per request
-    )
+    try:
+        # Change to the working directory so git commands work correctly
+        os.chdir(working_dir)
 
-    # Default artifacts to ALWAYS check
-    default_artifacts = [
-        "implementation_plan.md",
-        "task.md",
-        "walkthrough.md",
-    ]
-    artifacts_to_read = default_artifacts + (context_files or [])
+        api_key = os.getenv("ZHIPU_API_KEY")
+        if not api_key:
+            return "Error: ZHIPU_API_KEY environment variable is not set."
 
-    # Pre-read artifacts that exist AND resolve their links
-    artifact_context = ""
-    all_diff_files = []
+        # Configurable API endpoint
+        base_url = os.getenv("ZHIPU_BASE_URL", "https://api.z.ai/api/coding/paas/v4")
 
-    logger.info("Loading artifacts...")
-    for artifact in artifacts_to_read:
-        try:
-            with open(artifact, "r", encoding="utf-8") as f:
-                content = f.read()
-                logger.info(f"  ✓ Loaded {artifact}")
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=120.0,  # 2 minute timeout per request
+        )
 
-                # Parse for render_diffs and file links
-                diff_files, linked_files = parse_file_links(content)
-                all_diff_files.extend(diff_files)
+        # Default artifacts to ALWAYS check
+        default_artifacts = [
+            "implementation_plan.md",
+            "task.md",
+            "walkthrough.md",
+        ]
+        artifacts_to_read = default_artifacts + (context_files or [])
 
-                # Process the artifact - resolve render_diffs inline
-                processed_content, _ = process_artifact_with_links(
-                    artifact, diff_target
-                )
-                artifact_context += (
-                    f"\n\n--- ARTIFACT: {artifact} ---\n{processed_content}"
-                )
+        # Pre-read artifacts that exist AND resolve their links
+        artifact_context = ""
+        all_diff_files = []
 
-        except FileNotFoundError:
-            pass  # Silently skip missing artifacts
-        except Exception as e:
-            logger.error(f"  ✗ Error loading {artifact}: {e}")
+        logger.info("Loading artifacts...")
+        for artifact in artifacts_to_read:
+            try:
+                with open(artifact, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    logger.info(f"  ✓ Loaded {artifact}")
 
-    # Determine which files to diff
-    # Priority: focus_files > files from artifacts > all changed files
-    if focus_files:
-        files_to_diff = focus_files
-        logger.info(f"Focusing on {len(files_to_diff)} specified files")
-    elif all_diff_files:
-        files_to_diff = all_diff_files
-        logger.info(f"Found {len(files_to_diff)} files in artifacts")
-    else:
-        files_to_diff = None  # Let reviewer fetch what it needs
-        logger.info("No specific files - reviewer will decide")
+                    # Parse for render_diffs and file links
+                    diff_files, linked_files = parse_file_links(content)
+                    all_diff_files.extend(diff_files)
 
-    # Pre-fetch diffs if we have specific files
-    if files_to_diff:
-        diff_content = get_scoped_diff(files_to_diff, diff_target)
-        changed_files = files_to_diff
-    else:
-        diff_content = ""
-        changed_files = []
+                    # Process the artifact - resolve render_diffs inline
+                    processed_content, _ = process_artifact_with_links(
+                        artifact, diff_target
+                    )
+                    artifact_context += (
+                        f"\n\n--- ARTIFACT: {artifact} ---\n{processed_content}"
+                    )
 
-    system_prompt = """You are a Senior Code Reviewer with access to tools.
+            except FileNotFoundError:
+                pass  # Silently skip missing artifacts
+            except Exception as e:
+                logger.error(f"  ✗ Error loading {artifact}: {e}")
+
+        # Determine which files to diff
+        # Priority: focus_files > files from artifacts > all changed files
+        if focus_files:
+            files_to_diff = focus_files
+            logger.info(f"Focusing on {len(files_to_diff)} specified files")
+        elif all_diff_files:
+            files_to_diff = all_diff_files
+            logger.info(f"Found {len(files_to_diff)} files in artifacts")
+        else:
+            files_to_diff = None  # Let reviewer fetch what it needs
+            logger.info("No specific files - reviewer will decide")
+
+        # Pre-fetch diffs if we have specific files
+        if files_to_diff:
+            diff_content = get_scoped_diff(files_to_diff, diff_target)
+            changed_files = files_to_diff
+        else:
+            diff_content = ""
+            changed_files = []
+
+        system_prompt = """You are a Senior Code Reviewer with access to tools.
 
 Your job is to review code changes. You have access to these tools:
 - get_uncommitted_changes: Get git diffs (staged, unstaged, or vs specific refs)
@@ -531,82 +544,91 @@ REVIEW FOCUS:
 
 Be concise but thorough. Ignore minor style issues."""
 
-    # Build initial user message with pre-fetched context
-    sections = []
+        # Build initial user message with pre-fetched context
+        sections = []
 
-    if task_description:
-        sections.append(f"## Task Description\n{task_description}")
+        if task_description:
+            sections.append(f"## Task Description\n{task_description}")
 
-    if artifact_context.strip():
-        sections.append(f"## Project Artifacts\n{artifact_context}")
+        if artifact_context.strip():
+            sections.append(f"## Project Artifacts\n{artifact_context}")
 
-    if changed_files:
-        sections.append(f"## Files to Review\n{chr(10).join(changed_files)}")
+        if changed_files:
+            sections.append(f"## Files to Review\n{chr(10).join(changed_files)}")
 
-    if diff_content.strip():
-        sections.append(f"## Git Diff ({diff_target})\n```diff\n{diff_content}\n```")
-
-    if sections:
-        user_message = "Please review the following:\n\n" + "\n\n".join(sections)
-        user_message += "\n\n---\nProvide a thorough code review. Use your tools if you need more information."
-    else:
-        user_message = "Please review the current code changes. Use list_changed_files and get_uncommitted_changes to see what's been modified."
-
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message},
-    ]
-
-    # Configurable max iterations
-    max_iterations = int(os.getenv("MAX_REVIEW_ITERATIONS", "10"))
-    iteration = 0
-    logger.info("Starting review...")
-    logger.info(f"Found {len(changed_files)} changed files")
-    logger.info(f"Loaded {len(artifacts_to_read)} artifacts")
-
-    for iteration in range(max_iterations):
-        logger.info(f"Iteration {iteration + 1}: Calling GLM-4.7...")
-        try:
-            response = client.chat.completions.create(
-                model="GLM-4.7",
-                messages=messages,
-                tools=REVIEWER_TOOLS,
-                tool_choice="auto",
-                temperature=0.2,
+        if diff_content.strip():
+            sections.append(
+                f"## Git Diff ({diff_target})\n```diff\n{diff_content}\n```"
             )
-        except Exception as e:
-            return f"Error calling GLM-4.7 API: {e}"
 
-        message = response.choices[0].message
+        if sections:
+            user_message = "Please review the following:\n\n" + "\n\n".join(sections)
+            user_message += "\n\n---\nProvide a thorough code review. Use your tools if you need more information."
+        else:
+            user_message = "Please review the current code changes. Use list_changed_files and get_uncommitted_changes to see what's been modified."
 
-        # If no tool calls, we're done - return the final message
-        if not message.tool_calls:
-            logger.info("Review complete!")
-            return message.content or "No review generated."
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
 
-        # Process tool calls
-        messages.append(message)
-        logger.info(f"GLM requested {len(message.tool_calls)} tool(s)")
+        # Configurable max iterations
+        max_iterations = int(os.getenv("MAX_REVIEW_ITERATIONS", "10"))
+        iteration = 0
+        logger.info("Starting review...")
+        logger.info(f"Found {len(changed_files)} changed files")
+        logger.info(f"Loaded {len(artifacts_to_read)} artifacts")
 
-        for tool_call in message.tool_calls:
-            func_name = tool_call.function.name
+        for iteration in range(max_iterations):
+            logger.info(f"Iteration {iteration + 1}: Calling GLM-4.7...")
             try:
-                func_args = json.loads(tool_call.function.arguments)
-            except json.JSONDecodeError:
-                func_args = {}
+                response = client.chat.completions.create(
+                    model="GLM-4.7",
+                    messages=messages,
+                    tools=REVIEWER_TOOLS,
+                    tool_choice="auto",
+                    temperature=0.2,
+                )
+            except Exception as e:
+                return f"Error calling GLM-4.7 API: {e}"
 
-            logger.info(f"  → {func_name}({func_args})")
+            message = response.choices[0].message
 
-            # Execute the tool
-            result = _execute_tool(func_name, func_args)
+            # If no tool calls, we're done - return the final message
+            if not message.tool_calls:
+                logger.info("Review complete!")
+                return message.content or "No review generated."
 
-            # Add tool result to messages
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": result,
-                }
-            )
+            # Process tool calls
+            messages.append(message)
+            logger.info(f"GLM requested {len(message.tool_calls)} tool(s)")
 
-    return "Error: Maximum iterations reached without completing review."
+            for tool_call in message.tool_calls:
+                func_name = tool_call.function.name
+                try:
+                    func_args = json.loads(tool_call.function.arguments)
+                except json.JSONDecodeError:
+                    func_args = {}
+
+                logger.info(f"  → {func_name}({func_args})")
+
+                # Execute the tool
+                result = _execute_tool(func_name, func_args)
+
+                # Add tool result to messages
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": result,
+                    }
+                )
+
+        return "Error: Maximum iterations reached without completing review."
+
+    except Exception as e:
+        return f"Error during review: {e}"
+
+    finally:
+        # Always restore the original directory
+        os.chdir(original_cwd)
