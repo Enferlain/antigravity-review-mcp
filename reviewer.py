@@ -2,9 +2,11 @@
 Code review logic using Zhipu GLM-4.7 via OpenAI-compatible API.
 """
 
+import logging
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -12,6 +14,12 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Configure logging to write to stderr
+logging.basicConfig(
+    level=logging.INFO, format="[%(name)s] %(message)s", stream=sys.stderr
+)
+logger = logging.getLogger("ReviewMCP")
 
 # File patterns to exclude from diffs (lockfiles, binaries, etc.)
 EXCLUDE_PATTERNS = [
@@ -439,12 +447,12 @@ def run_agentic_review(
     artifact_context = ""
     all_diff_files = []
 
-    print("[Review MCP] Loading artifacts...", flush=True)
+    logger.info("Loading artifacts...")
     for artifact in artifacts_to_read:
         try:
             with open(artifact, "r", encoding="utf-8") as f:
                 content = f.read()
-                print(f"[Review MCP]   ✓ Loaded {artifact}", flush=True)
+                logger.info(f"  ✓ Loaded {artifact}")
 
                 # Parse for render_diffs and file links
                 diff_files, linked_files = parse_file_links(content)
@@ -461,21 +469,19 @@ def run_agentic_review(
         except FileNotFoundError:
             pass  # Silently skip missing artifacts
         except Exception as e:
-            print(f"[Review MCP]   ✗ Error loading {artifact}: {e}", flush=True)
+            logger.error(f"  ✗ Error loading {artifact}: {e}")
 
     # Determine which files to diff
     # Priority: focus_files > files from artifacts > all changed files
     if focus_files:
         files_to_diff = focus_files
-        print(
-            f"[Review MCP] Focusing on {len(files_to_diff)} specified files", flush=True
-        )
+        logger.info(f"Focusing on {len(files_to_diff)} specified files")
     elif all_diff_files:
         files_to_diff = all_diff_files
-        print(f"[Review MCP] Found {len(files_to_diff)} files in artifacts", flush=True)
+        logger.info(f"Found {len(files_to_diff)} files in artifacts")
     else:
         files_to_diff = None  # Let reviewer fetch what it needs
-        print("[Review MCP] No specific files - reviewer will decide", flush=True)
+        logger.info("No specific files - reviewer will decide")
 
     # Pre-fetch diffs if we have specific files
     if files_to_diff:
@@ -532,12 +538,12 @@ Be concise but thorough. Ignore minor style issues."""
     # Configurable max iterations
     max_iterations = int(os.getenv("MAX_REVIEW_ITERATIONS", "10"))
     iteration = 0
-    print("[Review MCP] Starting review...", flush=True)
-    print(f"[Review MCP] Found {len(changed_files)} changed files", flush=True)
-    print(f"[Review MCP] Loaded {len(artifacts_to_read)} artifacts", flush=True)
+    logger.info("Starting review...")
+    logger.info(f"Found {len(changed_files)} changed files")
+    logger.info(f"Loaded {len(artifacts_to_read)} artifacts")
 
     for iteration in range(max_iterations):
-        print(f"[Review MCP] Iteration {iteration + 1}: Calling GLM-4.7...", flush=True)
+        logger.info(f"Iteration {iteration + 1}: Calling GLM-4.7...")
         try:
             response = client.chat.completions.create(
                 model="GLM-4.7",
@@ -553,14 +559,12 @@ Be concise but thorough. Ignore minor style issues."""
 
         # If no tool calls, we're done - return the final message
         if not message.tool_calls:
-            print("[Review MCP] Review complete!", flush=True)
+            logger.info("Review complete!")
             return message.content or "No review generated."
 
         # Process tool calls
         messages.append(message)
-        print(
-            f"[Review MCP] GLM requested {len(message.tool_calls)} tool(s)", flush=True
-        )
+        logger.info(f"GLM requested {len(message.tool_calls)} tool(s)")
 
         for tool_call in message.tool_calls:
             func_name = tool_call.function.name
@@ -569,7 +573,7 @@ Be concise but thorough. Ignore minor style issues."""
             except json.JSONDecodeError:
                 func_args = {}
 
-            print(f"[Review MCP]   → {func_name}({func_args})", flush=True)
+            logger.info(f"  → {func_name}({func_args})")
 
             # Execute the tool
             result = _execute_tool(func_name, func_args)
