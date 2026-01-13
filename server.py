@@ -5,12 +5,7 @@ Exposes a SINGLE tool that triggers an agentic review where
 GLM-4.7 decides what information to gather (diffs, files, context).
 """
 
-import sys
-
-# Redirect stdout to stderr to prevent stray prints from breaking MCP protocol
-# MCP communicates via stdio, so any text sent to stdout disrupts the JSON-RPC messages.
-sys.stdout = sys.stderr
-
+import anyio
 from mcp.server.fastmcp import FastMCP
 import reviewer
 
@@ -19,13 +14,7 @@ mcp = FastMCP(name="Code Review MCP")
 
 
 @mcp.tool()
-def test_connection() -> str:
-    """Test that the MCP server is working."""
-    return "MCP connection successful!"
-
-
-@mcp.tool()
-def review_with_context(
+async def review_with_context(
     diff_target: str = "staged",
     context_files: list[str] | None = None,
     focus_files: list[str] | None = None,
@@ -53,11 +42,14 @@ def review_with_context(
     Returns:
         The code review from GLM-4.7.
     """
-    return reviewer.run_agentic_review(
-        diff_target=diff_target,
-        context_files=context_files,
-        focus_files=focus_files,
-        task_description=task_description,
+    # Run blocking I/O in a thread to avoid blocking the event loop
+    return await anyio.to_thread.run_sync(
+        lambda: reviewer.run_agentic_review(
+            diff_target=diff_target,
+            context_files=context_files,
+            focus_files=focus_files,
+            task_description=task_description,
+        )
     )
 
 

@@ -5,6 +5,7 @@ description = "MCP server for AI-powered code review using GLM-4.7"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "anyio>=4.0.0",
     "mcp[cli]>=1.9.0",
     "openai>=1.60.0",
     "python-dotenv>=1.0.0",
