@@ -2,43 +2,34 @@
 
 AI-powered code review using Zhipu GLM-4.7. GLM autonomously gathers context (diffs, artifacts) and provides thorough reviews.
 
-## Setup
+## Installation
 
-1. **Install dependencies:**
+Add to your IDE's MCP config:
 
-   ```bash
-   uv sync
-   ```
+```json
+{
+  "mcpServers": {
+    "review-mcp": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/Enferlain/antigravity-review-mcp",
+        "python",
+        "server.py"
+      ]
+    }
+  }
+}
+```
 
-2. **Configure API Key:**
+**Or** clone and run locally:
 
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your Zhipu API key
-   ```
-
-3. **Add to your IDE's MCP config:**
-
-   ```json
-   {
-     "mcpServers": {
-       "review-mcp": {
-         "command": "uv",
-         "args": [
-           "run",
-           "--directory",
-           "/absolute/path/to/review_mcp",
-           "python",
-           "server.py"
-         ]
-       }
-     }
-   }
-   ```
-
-   > Replace `/absolute/path/to/review_mcp` with the actual path to this project.
-
-4. **Restart your IDE** to load the new MCP server.
+```bash
+git clone https://github.com/Enferlain/antigravity-review-mcp.git
+cd antigravity-review-mcp
+cp .env.example .env
+# Edit .env and add your Zhipu API key
+```
 
 ## Configuration
 

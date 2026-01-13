@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "review-mcp": {
-      "command": "uv",
-      "args": ["run", "--directory", "/absolute/path/to/review_mcp", "python", "server.py"]
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/Enferlain/antigravity-review-mcp", "python", "server.py"]
     }
   }
 }
