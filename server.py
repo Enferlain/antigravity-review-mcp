@@ -13,6 +13,12 @@ mcp = FastMCP(name="Code Review MCP")
 
 
 @mcp.tool()
+def test_connection() -> str:
+    """Test that the MCP server is working."""
+    return "MCP connection successful!"
+
+
+@mcp.tool()
 def review_with_context(
     diff_target: str = "staged",
     context_files: list[str] | None = None,
