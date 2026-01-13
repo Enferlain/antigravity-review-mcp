@@ -15,7 +15,6 @@ mcp = FastMCP(name="Code Review MCP")
 
 @mcp.tool()
 async def review_with_context(
-    working_dir: str,
     diff_target: str = "staged",
     context_files: list[str] | None = None,
     focus_files: list[str] | None = None,
@@ -29,8 +28,6 @@ async def review_with_context(
     GLM-4.7 for a thorough code review.
 
     Args:
-        working_dir: The git repository directory to review (required).
-            This should be the root of your project/repository.
         diff_target: What to diff. Options:
             - 'staged' (default): Review staged changes
             - 'unstaged': Review unstaged changes
@@ -48,7 +45,6 @@ async def review_with_context(
     # Run blocking I/O in a thread to avoid blocking the event loop
     return await anyio.to_thread.run_sync(
         lambda: reviewer.run_agentic_review(
-            working_dir=working_dir,
             diff_target=diff_target,
             context_files=context_files,
             focus_files=focus_files,
