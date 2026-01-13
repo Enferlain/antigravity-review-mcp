@@ -2,7 +2,16 @@
   "mcpServers": {
     "review-mcp": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/Enferlain/antigravity-review-mcp", "review-mcp"]
+      "args": [
+        "--from",
+        "git+https://github.com/Enferlain/antigravity-review-mcp",
+        "review-mcp",
+        "-w",
+        "${workspaceFolder}"
+      ],
+      "env": {
+        "ZHIPU_API_KEY": "your-api-key-here"
+      }
     }
   }
 }

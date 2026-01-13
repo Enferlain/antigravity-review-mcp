@@ -425,6 +425,7 @@ def _execute_tool(name: str, arguments: dict) -> str:
 
 
 def run_agentic_review(
+    working_dir: str,
     diff_target: str = "staged",
     context_files: list[str] | None = None,
     focus_files: list[str] | None = None,
@@ -434,6 +435,7 @@ def run_agentic_review(
     Run an agentic review where GLM-4.7 decides what information to gather.
 
     Args:
+        working_dir: The git repository directory to run commands in.
         diff_target: 'staged', 'unstaged', or a git ref.
         context_files: Optional list of context files. If None, uses defaults.
         focus_files: Optional list of files to focus the review on.
@@ -444,25 +446,12 @@ def run_agentic_review(
     """
     import json
 
-    # Auto-detect git repository root
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=True,
-            encoding="utf-8",
-            stdin=subprocess.DEVNULL,
-            timeout=10,
-        )
-        working_dir = result.stdout.strip()
-    except subprocess.CalledProcessError:
-        return "Error: Not in a git repository. Please run from within a git project."
-    except FileNotFoundError:
-        return "Error: git is not installed or not in PATH."
-
     # Save original directory and restore it on exit (safety sandwich)
     original_cwd = os.getcwd()
+
+    # Validate working directory
+    if not os.path.exists(working_dir):
+        return f"Error: The directory '{working_dir}' does not exist."
 
     try:
         # Change to the working directory so git commands work correctly

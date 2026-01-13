@@ -5,9 +5,19 @@ Exposes a SINGLE tool that triggers an agentic review where
 GLM-4.7 decides what information to gather (diffs, files, context).
 """
 
+import os
+import sys
+
 import anyio
 from mcp.server.fastmcp import FastMCP
 import reviewer
+
+# Parse workspace path from command-line args (-w flag)
+WORKSPACE_DIR: str = os.getcwd()  # Default to current directory
+for i, arg in enumerate(sys.argv):
+    if arg == "-w" and i + 1 < len(sys.argv):
+        WORKSPACE_DIR = sys.argv[i + 1]
+        break
 
 # Create the MCP server
 mcp = FastMCP(name="Code Review MCP")
@@ -45,6 +55,7 @@ async def review_with_context(
     # Run blocking I/O in a thread to avoid blocking the event loop
     return await anyio.to_thread.run_sync(
         lambda: reviewer.run_agentic_review(
+            working_dir=WORKSPACE_DIR,
             diff_target=diff_target,
             context_files=context_files,
             focus_files=focus_files,
