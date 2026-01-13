@@ -5,6 +5,12 @@ Exposes a SINGLE tool that triggers an agentic review where
 GLM-4.7 decides what information to gather (diffs, files, context).
 """
 
+import sys
+
+# Redirect stdout to stderr to prevent stray prints from breaking MCP protocol
+# MCP communicates via stdio, so any text sent to stdout disrupts the JSON-RPC messages.
+sys.stdout = sys.stderr
+
 from mcp.server.fastmcp import FastMCP
 import reviewer
 
