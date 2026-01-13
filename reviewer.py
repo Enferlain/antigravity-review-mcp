@@ -15,15 +15,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configure logging to write to stderr
-logging.basicConfig(
-    level=logging.INFO, format="[%(name)s] %(message)s", stream=sys.stderr
-)
-# Silence 3rd party loggers to prevent MCP protocol interference
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("openai").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-
+# Disable logging entirely to prevent any stdout/stderr interference with MCP
+logging.disable(logging.CRITICAL)
 logger = logging.getLogger("ReviewMCP")
 
 # File patterns to exclude from diffs (lockfiles, binaries, etc.)
