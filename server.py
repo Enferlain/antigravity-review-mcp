@@ -5,21 +5,25 @@ Exposes a SINGLE tool that triggers an agentic review where
 GLM-4.7 decides what information to gather (diffs, files, context).
 """
 
+import argparse
 import os
 import sys
-
 import anyio
 from mcp.server.fastmcp import FastMCP
 import reviewer
 
-# Parse workspace path from command-line args (-w flag)
-WORKSPACE_DIR: str = os.getcwd()  # Default to current directory
-for i, arg in enumerate(sys.argv):
-    if arg == "-w" and i + 1 < len(sys.argv):
-        WORKSPACE_DIR = sys.argv[i + 1]
-        break
+# Parse command-line arguments BEFORE creating the server
+parser = argparse.ArgumentParser()
+parser.add_argument("-w", "--workspace", dest="workspace_dir", 
+                    default=os.getcwd(),
+                    help="Workspace directory (git repository root)")
+args, unknown = parser.parse_known_args()
 
-# Create the MCP server
+WORKSPACE_DIR = args.workspace_dir
+
+# Log the workspace dir for debugging
+print(f"[ReviewMCP] Using workspace: {WORKSPACE_DIR}", file=sys.stderr)
+
 mcp = FastMCP(name="Code Review MCP")
 
 
