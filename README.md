@@ -14,8 +14,7 @@ Add to your IDE's MCP config:
       "args": [
         "--from",
         "git+https://github.com/Enferlain/antigravity-review-mcp",
-        "python",
-        "server.py"
+        "review-mcp"
       ]
     }
   }

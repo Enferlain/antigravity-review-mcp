@@ -2,7 +2,7 @@
   "mcpServers": {
     "review-mcp": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/Enferlain/antigravity-review-mcp", "python", "server.py"]
+      "args": ["--from", "git+https://github.com/Enferlain/antigravity-review-mcp", "review-mcp"]
     }
   }
 }
