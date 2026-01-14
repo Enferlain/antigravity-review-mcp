@@ -40,6 +40,7 @@ async def review_with_context(
     context_files: list[str] | None = None,
     focus_files: list[str] | None = None,
     task_description: str = "",
+    working_directory: str | None = None,
 ) -> str:
     """
     Review code changes against project context using GLM-4.7.
@@ -59,14 +60,20 @@ async def review_with_context(
             If provided, only diffs for these files will be reviewed.
         task_description: Optional description of what you're trying to accomplish.
             Helps the reviewer understand the intent behind the changes.
+        working_directory: The git repository root to review. If not provided,
+            falls back to the server's configured workspace directory.
 
     Returns:
         The code review from GLM-4.7.
     """
+    # Use provided working_directory, or fall back to config
+    effective_dir = working_directory or WORKSPACE_DIR
+    print(f"[ReviewMCP] Effective workspace: {effective_dir}", file=sys.stderr)
+
     # Run blocking I/O in a thread to avoid blocking the event loop
     return await anyio.to_thread.run_sync(
         lambda: reviewer.run_agentic_review(
-            working_dir=WORKSPACE_DIR,
+            working_dir=effective_dir,
             diff_target=diff_target,
             context_files=context_files,
             focus_files=focus_files,

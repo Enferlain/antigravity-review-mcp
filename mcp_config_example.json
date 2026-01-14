@@ -7,7 +7,7 @@
         "git+https://github.com/Enferlain/antigravity-review-mcp",
         "review-mcp",
         "--workspace-dir",
-        "${workspaceFolder}"
+        "D:/Projects/your-repo"
       ],
       "env": {
         "ZHIPU_API_KEY": "your-api-key-here"

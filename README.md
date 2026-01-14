@@ -42,6 +42,14 @@ Environment variables (in `.env`):
 
 The MCP exposes **1 tool**: `review_with_context`
 
+Parameters:
+
+- `diff_target`: 'staged' (default), 'unstaged', or a git ref like 'HEAD~1'
+- `context_files`: Additional files to include as context
+- `focus_files`: Specific files to focus the review on
+- `task_description`: Description of what you're trying to accomplish
+- `working_directory`: Git repository root (optional, falls back to config)
+
 When called, it automatically:
 
 1. Pre-reads `implementation_plan.md`, `task.md`, `walkthrough.md` (if they exist)
@@ -49,6 +57,18 @@ When called, it automatically:
 3. Sends context to GLM-4.7
 4. GLM gathers additional info as needed using its tools
 5. Returns the final review
+
+## Antigravity/Windsurf IDE Note
+
+These IDEs don't support `${workspaceFolder}` variables in MCP config. Two options:
+
+1. **Hardcode the path** in your MCP config:
+
+   ```json
+   "args": ["--from", "...", "review-mcp", "--workspace-dir", "D:/Projects/myrepo"]
+   ```
+
+2. **Pass it when calling**: The agent can pass `working_directory` parameter
 
 Example prompt to your AI assistant:
 
