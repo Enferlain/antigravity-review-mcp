@@ -12,11 +12,18 @@ import anyio
 from mcp.server.fastmcp import FastMCP
 import reviewer
 
+# Log sys.argv for debugging (what did we actually receive?)
+print(f"[ReviewMCP] sys.argv: {sys.argv}", file=sys.stderr)
+
 # Parse command-line arguments BEFORE creating the server
+# NOTE: Don't use -w as it conflicts with uvx's --with flag
 parser = argparse.ArgumentParser()
-parser.add_argument("-w", "--workspace", dest="workspace_dir", 
-                    default=os.getcwd(),
-                    help="Workspace directory (git repository root)")
+parser.add_argument(
+    "--workspace-dir",
+    dest="workspace_dir",
+    default=os.getcwd(),
+    help="Workspace directory (git repository root)",
+)
 args, unknown = parser.parse_known_args()
 
 WORKSPACE_DIR = args.workspace_dir

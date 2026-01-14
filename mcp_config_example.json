@@ -6,7 +6,7 @@
         "--from",
         "git+https://github.com/Enferlain/antigravity-review-mcp",
         "review-mcp",
-        "--workspace",
+        "--workspace-dir",
         "${workspaceFolder}"
       ],
       "env": {
