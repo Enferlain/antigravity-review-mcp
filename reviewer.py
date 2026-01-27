@@ -335,6 +335,10 @@ match the intent described in the provided documentation.
 Based on the artifacts and diff above, provide a code review. If there are no issues, say so briefly."""
 
     try:
+        # Log the prompt sizes for debugging
+        logger.info(f"System Prompt Length: {len(system_prompt)} chars")
+        logger.info(f"User Prompt Length: {len(user_prompt)} chars")
+
         response = client.chat.completions.create(
             model="GLM-4.7",
             messages=[
@@ -345,6 +349,7 @@ Based on the artifacts and diff above, provide a code review. If there are no is
         )
         return response.choices[0].message.content
     except Exception as e:
+        logger.error(f"Error calling GLM-4.7 API in generate_critique: {e}")
         return f"Error calling GLM-4.7 API: {e}"
 
 
@@ -573,7 +578,7 @@ Be concise but thorough. Ignore minor style issues."""
         ]
 
         # Configurable max iterations
-        max_iterations = int(os.getenv("MAX_REVIEW_ITERATIONS", "10"))
+        max_iterations = int(os.getenv("MAX_REVIEW_ITERATIONS", "20"))
         iteration = 0
         logger.info("Starting review...")
         logger.info(f"Found {len(changed_files)} changed files")
@@ -581,16 +586,56 @@ Be concise but thorough. Ignore minor style issues."""
 
         for iteration in range(max_iterations):
             logger.info(f"Iteration {iteration + 1}: Calling GLM-4.7...")
-            try:
-                response = client.chat.completions.create(
-                    model="GLM-4.7",
-                    messages=messages,
-                    tools=REVIEWER_TOOLS,
-                    tool_choice="auto",
-                    temperature=0.2,
-                )
-            except Exception as e:
-                return f"Error calling GLM-4.7 API: {e}"
+
+            # Log exact payload size for debugging
+            total_chars = 0
+            for m in messages:
+                if isinstance(m, dict):
+                    content = m.get("content", "")
+                else:
+                    content = getattr(m, "content", "")
+                total_chars += len(content or "")
+
+            logger.info(
+                f"  Payload size: {total_chars} chars, {len(messages)} messages"
+            )
+
+            import time
+
+            backoff = 1
+            response = None
+            for retry in range(3):
+                try:
+                    response = client.chat.completions.create(
+                        model="GLM-4.7",
+                        messages=messages,
+                        tools=REVIEWER_TOOLS,
+                        tool_choice="auto",
+                        temperature=0.2,
+                    )
+                    break  # Success
+                except Exception as e:
+                    if retry < 2 and any(
+                        code in str(e) for code in ["500", "502", "503", "429"]
+                    ):
+                        logger.warning(
+                            f"  Retry {retry + 1} due to {e}. Waiting {backoff}s..."
+                        )
+                        time.sleep(backoff)
+                        backoff *= 2
+                        continue
+
+                    # Provide much more detail for debugging
+                    error_msg = (
+                        f"Error calling GLM-4.7 API at iteration {iteration + 1}: {e}"
+                    )
+                    logger.error(error_msg)
+
+                    # Check for specific error types if possible
+                    if "502" in str(e) or "500" in str(e):
+                        error_msg += "\n\nTIP: This often happens if the context is too large or the payload is complex. Try reducing the number of focus_files or artifacts."
+
+                    return error_msg
 
             message = response.choices[0].message
 
