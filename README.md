@@ -1,10 +1,42 @@
 # Code Review MCP
 
-AI-powered code review using Zhipu GLM-4.7. GLM autonomously gathers context (diffs, artifacts) and provides thorough reviews.
+AI-powered code review using Zhipu GLM. The server gathers git diffs, project artifacts, and source context, then asks the model for a focused review.
 
 ## Installation
 
-Add to your IDE's MCP config:
+Install dependencies:
+
+```bash
+git clone https://github.com/Enferlain/antigravity-review-mcp.git
+cd antigravity-review-mcp
+cp .env.example .env
+# Optional: edit .env and add your API key
+uv sync
+```
+
+Then add it to your MCP client.
+
+For local Codex / VS Code usage, a direct `uv run` command is the most reliable option:
+
+```json
+{
+  "mcpServers": {
+    "review-mcp": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/antigravity-review-mcp",
+        "run",
+        "review-mcp",
+        "--workspace-dir",
+        "/absolute/path/to/the-repo-you-want-reviewed"
+      ]
+    }
+  }
+}
+```
+
+You can still use `uvx` if you prefer installing from Git:
 
 ```json
 {
@@ -14,29 +46,23 @@ Add to your IDE's MCP config:
       "args": [
         "--from",
         "git+https://github.com/Enferlain/antigravity-review-mcp",
-        "review-mcp"
+        "review-mcp",
+        "--workspace-dir",
+        "/absolute/path/to/the-repo-you-want-reviewed"
       ]
     }
   }
 }
 ```
 
-**Or** clone and run locally:
-
-```bash
-git clone https://github.com/Enferlain/antigravity-review-mcp.git
-cd antigravity-review-mcp
-cp .env.example .env
-# Edit .env and add your Zhipu API key
-```
-
 ## Configuration
 
 Environment variables (in `.env`):
 
-- `ZHIPU_API_KEY` (required): Your Zhipu API key
+- `AI_API_KEY` (required): Your API key
+- `ZHIPU_API_KEY` (optional): Backward-compatible fallback key name
 - `ZHIPU_BASE_URL` (optional): Override API endpoint
-- `MAX_REVIEW_ITERATIONS` (optional): Max tool-calling iterations (default: 10)
+- `MAX_REVIEW_ITERATIONS` (optional): Max tool-calling iterations (default: 20)
 
 ## Usage
 
@@ -54,21 +80,31 @@ When called, it automatically:
 
 1. Pre-reads `implementation_plan.md`, `task.md`, `walkthrough.md` (if they exist)
 2. Resolves `render_diffs()` and `file:///` links in artifacts
-3. Sends context to GLM-4.7
+3. Sends context to GLM
 4. GLM gathers additional info as needed using its tools
 5. Returns the final review
 
-## Antigravity/Windsurf IDE Note
+## Codex / VS Code Notes
 
-These IDEs don't support `${workspaceFolder}` variables in MCP config. Two options:
+This server now starts cleanly under MCP hosts because it avoids doing heavy work at import time. A few setup notes still matter:
 
-1. **Hardcode the path** in your MCP config:
+1. Use absolute paths for both the MCP project and the reviewed repository.
+2. If your MCP client cannot inject the current repo automatically, set `--workspace-dir` in the config.
+3. Prefer setting `AI_API_KEY` as a system/user environment variable instead of storing it in MCP config.
+4. The tool-level `working_directory` argument still overrides the configured workspace when your agent provides it.
 
-   ```json
-   "args": ["--from", "...", "review-mcp", "--workspace-dir", "D:/Projects/myrepo"]
-   ```
+Example Windows path:
 
-2. **Pass it when calling**: The agent can pass `working_directory` parameter
+```json
+"args": [
+  "--directory",
+  "D:/Projects/antigravity-review-mcp",
+  "run",
+  "review-mcp",
+  "--workspace-dir",
+  "D:/Projects/myrepo"
+]
+```
 
 Example prompt to your AI assistant:
 
